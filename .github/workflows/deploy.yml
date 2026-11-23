@@ -27,7 +27,7 @@ jobs:
         run: dotnet restore ./aspnet/aspnet.csproj
 
       - name: Publish ASP.NET Core
-        run: dotnet publish ./aspnet/aspnet.csproj -c Release -r win-x86 --self-contained false --no-restore -o ./publish
+        run: dotnet publish ./aspnet/aspnet.csproj -c Release -r win-x86 --self-contained false -o ./publish
 
       - name: Deploy ASP.NET Core to Somee
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
