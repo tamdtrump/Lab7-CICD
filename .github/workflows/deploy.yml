@@ -1,3 +1,4 @@
+
 name: Deploy ASP.NET Core to Somee
 
 on:
@@ -9,6 +10,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: somee-deployment
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -23,11 +28,28 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
       - name: Restore dependencies
         run: dotnet restore ./aspnet/aspnet.csproj
 
       - name: Publish ASP.NET Core
         run: dotnet publish ./aspnet/aspnet.csproj -c Release -r win-x86 --self-contained false -o ./publish
+
+      - name: Put application offline
+        id: offline
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
+        run: python ./scripts/ftp_offline.py enable
+
+      - name: Wait for IIS shutdown
+        run: Start-Sleep -Seconds 15
 
       - name: Deploy ASP.NET Core to Somee
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
@@ -38,3 +60,18 @@ jobs:
           protocol: ftp
           local-dir: ./publish/
           server-dir: ${{ secrets.FTP_SERVER_DIR }}
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            app_offline.htm
+            **/app_offline.htm
+
+      - name: Restore application online
+        if: ${{ always() && steps.offline.outcome == 'success' }}
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
+        run: python ./scripts/ftp_offline.py disable
